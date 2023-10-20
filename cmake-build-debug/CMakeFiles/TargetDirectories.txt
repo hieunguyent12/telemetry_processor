@@ -1,3 +1,0 @@
-/Users/hieu/dev/telemetry-processor/cmake-build-debug/CMakeFiles/telemetry_processor.dir
-/Users/hieu/dev/telemetry-processor/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/hieu/dev/telemetry-processor/cmake-build-debug/CMakeFiles/rebuild_cache.dir
