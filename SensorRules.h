@@ -1,7 +1,3 @@
-//
-// Created by Hieu Nguyen on 10/21/23.
-//
-
 #ifndef TELEMETRY_PROCESSOR_SENSORRULES_H
 #define TELEMETRY_PROCESSOR_SENSORRULES_H
 
