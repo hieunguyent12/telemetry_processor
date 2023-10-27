@@ -5,6 +5,7 @@
 #include "SensorData.h"
 #include "SensorRules.h"
 #include "cparse/shunting-yard.h"
+#include <fstream> // Add this include for file operations
 
 using namespace std;
 
