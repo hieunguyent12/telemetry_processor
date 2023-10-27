@@ -8,6 +8,9 @@
 
 using namespace std;
 
+// Create a file stream for output
+ofstream outputFile("output.txt", ios::app);
+
 // TODO: call this function on the data
 SensorData handleExpression(SensorData &data, SensorRules &rules) {
     cparse::calculator c1(rules.expr); // Create calculator based on expression
@@ -93,6 +96,10 @@ void process_data(sockpp::tcp_socket sock) {
 
                 cout << "Data: " << data_string << endl;
                 cout << "Length: " << length << endl;
+
+                 // Append the processed data to the output file
+                outputFile << data_string << ",\n";
+                outputFile.flush(); // Ensure data is written to the file
 
             }
         }
