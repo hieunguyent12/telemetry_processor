@@ -6,14 +6,15 @@
 #include "SensorRules.h"
 #include "cparse/shunting-yard.h"
 #include <fstream> // Add this include for file operations
+#include "nlohmann/json.hpp"
 
+using json = nlohmann::json;
 using namespace std;
 
 // Create a file stream for output
 ofstream outputFile("output.txt", ios::app);
 
-// TODO: call this function on the data
-SensorData handleExpression(SensorData &data, SensorRules &rules) {
+SensorData applyProcessingRule(SensorData &data, SensorRules &rules) {
     cparse::calculator c1(rules.expr); // Create calculator based on expression
     cparse::TokenMap vars;
     vars["value"] = data.value;
@@ -25,9 +26,14 @@ SensorData handleExpression(SensorData &data, SensorRules &rules) {
     int outputValue = temp.asInt(); // Store calculator output
 
     time_t currTimeTemp = std::time(nullptr); // Get current time
-    int currTime = static_cast<int>(currTimeTemp);
 
-    SensorData output(currTime, rules.labelOut, rules.unitsOut, outputValue); // Create output sensor data object
+    SensorData output {
+            currTimeTemp,
+            rules.labelOut,
+            rules.unitsOut,
+            outputValue
+    };
+
     return output;
 }
 
@@ -38,11 +44,25 @@ std::string bufferToString(char* buffer, int bufflen)
     return ret;
 }
 
+// this function is needed to convert a json string to SensorData
+void from_json(const json& j, SensorData& s) {
+    j.at("t").get_to(s.time);
+    j.at("l").get_to(s.label);
+    j.at("u").get_to(s.units);
+    j.at("v").get_to(s.value);
+}
+
+void to_json(json& j, const SensorData& s) {
+    j = json{{"t", s.time}, {"l", s.label}, {"u", s.units}, {"v", s.value}};
+}
+
+
 void process_data(sockpp::tcp_socket sock) {
     char buf[512];
     fd_set readfds;
     int fd_max;
     struct timeval tv;
+    vector<SensorData> queue;
 
 
     // This while loop will keep the socket alive as long as the client is still connected
@@ -64,6 +84,7 @@ void process_data(sockpp::tcp_socket sock) {
             printf("Timeout occurred! No data after 10.5 seconds.\n");
         }
         else {
+            cout << FD_ISSET(sock.handle(), &readfds) << endl;
             if (FD_ISSET(sock.handle(), &readfds)) {
                 cout << "there is new data available!!" << endl;
 
@@ -71,8 +92,6 @@ void process_data(sockpp::tcp_socket sock) {
                 if (sock.read(buf, sizeof(buf)) == 0) {
                     break;
                 }
-
-                // TODO: figure out a more efficient way to parse the buffer
 
                 int length = int((unsigned char)(buf[0]) << 24 |
                                  (unsigned char)(buf[1]) << 16 |
@@ -95,17 +114,52 @@ void process_data(sockpp::tcp_socket sock) {
 
                 data_string = data_string.substr(0, data_string.size() - 3);
 
-                cout << "Data: " << data_string << endl;
-                cout << "Length: " << length << endl;
 
-                 // Append the processed data to the output file
-                outputFile << data_string << ",\n";
-                outputFile.flush(); // Ensure data is written to the file
+                if (data_string == "START") {
+                    unsigned char res[3] = "OK";
+                    int32_t length = sizeof(res);
+                    vector<unsigned char> res_buffer;
 
+                    res_buffer.push_back(length >> 24);
+                    res_buffer.push_back(length >> 16);
+                    res_buffer.push_back(length >>  8);
+                    res_buffer.push_back(length);
+
+                    for (int i = 0; i < length; i++) {
+                        res_buffer.push_back(res[i]);
+                    }
+
+                    unsigned char* a = res_buffer.data();
+                    sock.write_n(a, sizeof(a));
+                } else {
+                    cout << "Data: " << data_string << endl;
+                    cout << "Length: " << length << endl;
+
+                    json json_data = json::parse(data_string);
+                    auto sensor_data = json_data.template get<SensorData>();
+                    queue.push_back(sensor_data);
+                }
+            } else {
+                // TODO: process data in the queue while waiting for new data?
             }
         }
     }
 
+    // Example sensor rule to apply on data
+    SensorRules r("PSI to Bars", "sensor:IPT", "PSI", "value * 0.0689476", "sensor:IPT", "BARS");
+
+    // process the data in the queue, if there are any
+    for (int i = 0; i < size(queue); i++) {
+        SensorData s = queue[i];
+
+        SensorData result = applyProcessingRule(s, r);
+
+        json result_string = result;
+
+        outputFile << result_string << ",\n";
+        outputFile.flush(); // Ensure data is written to the file
+    }
+    // Append the processed data to the output file
     cout << "Connection closed from " << sock.peer_address() << endl;
 }
 
@@ -116,8 +170,6 @@ int main(int argc, char* argv[]) {
     sockpp::initialize();
     sockpp::tcp_acceptor acc(port);
 
-    // TODO: put socket data into processing queue
-    vector<int> processing_queue;
 
     if (!acc) {
         cerr << "Error creating server: " << acc.last_error_str() << endl;

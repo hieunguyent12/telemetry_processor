@@ -5,17 +5,18 @@
 
 #include <string>
 using namespace std;
+using namespace std::chrono;
 #pragma once
 
 struct SensorData {
-    int time;
+    milliseconds::rep time;
     string label;
     string units;
     int value;
-    SensorData(int t, string l, string u, int v) {
-        time = t;
-        label = l;
-        units = u;
-        value = v;
-    }
+//    SensorData(int t, string l, string u, int v) {
+//        time = t;
+//        label = l;
+//        units = u;
+//        value = v;
+//    }
 };
